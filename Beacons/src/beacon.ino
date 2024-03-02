@@ -113,7 +113,7 @@ bool setup_mpu()
 void setup()
 {
   Serial.begin(115200);
-  setup_mpu(); //TODO: put this back
+  // setup_mpu(); //TODO: put this back
   // Initialize pins for sound sensor
   // pinMode(sound_analog, INPUT);
 
