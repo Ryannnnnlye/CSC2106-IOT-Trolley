@@ -18,7 +18,7 @@
 #define TIMEOUT 2000 // Timeout before sendWait() tries again to send a message 
 
 // Match frequency to the hardware version of the radio on your Moteino
-#define FREQUENCY   915 
+#define FREQUENCY   925 
 
 // Singleton instance of the radio driver
 RH_RF95 driver;
@@ -61,47 +61,56 @@ typedef struct {
 
 packet message;
 
-// his example he set in rtos
-void loop()
-{
-  Serial.println("[Beacon B] sending to cart... ");
 
-  bool trolley_id_set = false;
-  message.beacon_id = BEACON_B_ADDRESS;
-  int16_t totalRssi = 0;
+bool isStart = false;
+void sendMessageToCart() {
 
+  if (isStart) {
+    Serial.println("[Beacon B] sending to cart... ");
 
-  for (int i = 0; i < 10; i++)
-  {
-    if (manager.sendtoWait(data, sizeof(data), CART_A_ADDRESS))
-    {
-      if (manager.recvfromAckTimeout(buf, &len, 500, &from))
-      {
-        if(!trolley_id_set)
-        {
-          message.trolley_id = from;
-          trolley_id_set = true;
+    bool trolley_id_set = false;
+    message.beacon_id = BEACON_B_ADDRESS;
+    int16_t totalRssi = 0;
+
+    int16_t counter = 0;
+    while (counter < 10) {
+      if (manager.sendtoWait(data, sizeof(data), CART_A_ADDRESS)) {
+        if (manager.recvfromAckTimeout(buf, &len, 500, &from)) {
+          if (!trolley_id_set) {
+            message.trolley_id = from;
+            trolley_id_set = true;
+          }
+          Serial.println("The rsi value is " + String(driver.lastRssi()));
+          totalRssi += driver.lastRssi();
+          ++counter;
         }
-        Serial.println("The rsi value is " + String(driver.lastRssi()));
-        totalRssi += driver.lastRssi();
+      } else {
+        Serial.println("Packet Loss Cart A!");
       }
     }
-    else
-    {
-      Serial.println("Packet Loss Cart B!");
+    Serial.println("The total rsi is " + String(totalRssi));
+    message.average_rssi = totalRssi / 10.0;
+    Serial.println("The average value is " + String(message.average_rssi));
+  }
+}
+
+// his example he set in rtos
+void loop() {
+  if (manager.recvfromAck(buf, &len, &from)) {
+    Serial.println("received from server");
+    Serial.println(from);
+    // Receive a message from server
+    if (from == SERVER_ADDRESS) {
+      isStart = true;
+      sendMessageToCart();
+      // Send the result to the server
+      // retries = 4, timeout = 2 seconds --> blocking 8 seconds
+      if (manager.sendtoWait((uint8_t*)&message, sizeof(message), SERVER_ADDRESS)) {
+        if (manager.recvfromAckTimeout(buf, &len, 4000, &from)) {
+          Serial.println("Transmission successful");
+        }
+        isStart = false;
+      }
     }
   }
-
-  Serial.println("The total rsi is " + String(totalRssi));
-  message.average_rssi = totalRssi / 10.0;
-  Serial.println("The average value is " + String(message.average_rssi));
-
-  
-  if (manager.sendtoWait((uint8_t*)&message, sizeof(message), SERVER_ADDRESS))
-    {
-      if (manager.recvfromAckTimeout(buf, &len, 4000, &from))
-      {
-        Serial.println("Transmission successful");
-      }
-    }
 }
