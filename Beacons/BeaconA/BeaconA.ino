@@ -12,7 +12,7 @@
 
 
 #define CART_A_ADDRESS 5 // address number cart
-#define BEACON_B_ADDRESS 3 // address number of the Client
+#define BEACON_A_ADDRESS 2 // address number of the Client
 #define SERVER_ADDRESS 1 // address number of the Server
 #define RETRIES 4 // Number of times the sendtoWait() will try to send a message. Default is 3
 #define TIMEOUT 2000 // Timeout before sendWait() tries again to send a message 
@@ -24,13 +24,13 @@
 RH_RF95 driver;
 
 // Class to manage message delivery and receipt, using the driver declared above
-RHReliableDatagram manager(driver, BEACON_B_ADDRESS);
+RHReliableDatagram manager(driver, BEACON_A_ADDRESS);
 
 void setup() 
 {
    // connect to the serial monitor at 115200 baud
   Serial.begin(115200);
-  Serial.println("Beacon B");
+  Serial.println("Beacon A");
   Serial.println("");
   
   //Initialize the radio
@@ -64,10 +64,10 @@ packet message;
 // his example he set in rtos
 void loop()
 {
-  Serial.println("[Beacon B] sending to cart... ");
+  Serial.println("[Beacon A] sending to cart... ");
 
   bool trolley_id_set = false;
-  message.beacon_id = BEACON_B_ADDRESS;
+  message.beacon_id = BEACON_A_ADDRESS;
   int16_t totalRssi = 0;
 
 
