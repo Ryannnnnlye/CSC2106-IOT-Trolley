@@ -223,7 +223,7 @@ void loop() {
         serverMessage msgOut;
         msgOut.trolleyId = packet.trolleyId;
 
-        Serial.print("lock?");
+        Serial.print("lock?\n");
         if (trilaterate(target[0], target[1], target[2])){
           Serial.print("Unlock");
           msgOut.isLock = 0;
@@ -234,7 +234,9 @@ void loop() {
 
         rf95.setFrequency(923.0);
         delay(100);
-        rf95.send((uint8_t*)&msgOut, sizeof(msgOut));
+        for (int i=0;i<10;i++){
+          rf95.send((uint8_t*)&msgOut, sizeof(msgOut));
+        }
         rf95.setFrequency(920.0);
 
         // Reset RSSI vaues for the trolley
