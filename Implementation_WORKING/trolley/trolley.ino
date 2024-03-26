@@ -1,4 +1,3 @@
-
 #include <SPI.h>
 #include <RH_RF95.h>
 #include <Wire.h>
@@ -12,7 +11,7 @@
 #define RFM95_INT 2
 #define TROLLEY_ID 5
 
-#define RF95_FREQ 923.0
+#define RF95_FREQ 915.0
 
 // LAB ADD-ONS
 #define SCREEN_WIDTH 128  // OLED display width, in pixels
@@ -80,33 +79,23 @@ void setup() {
   display.display();
 
   rf95.setTxPower(13, false);
+  rf95.setFrequency(923.0);
 }
 
-int everyTenth = 0;
-unsigned long timeoutDuration = 5000;  // 5 seconds timeout
-unsigned long nextTimeout = 0;  // Variable to store the next timeout time
-unsigned long currentTime;
-
+int everyAlternate = 0;
+unsigned long timeoutDuration = 400;  // 5 seconds timeout
+unsigned long nextTimeout = millis() + timeoutDuration;  // Variable to store the next timeout time=
+unsigned long currentTime = millis();
 
 void loop() {
-  Serial.println(everyTenth);
-  if (everyTenth == 10) {
-    currentTime = millis();
-
-    // Check if it's time to process the RF95 data
-    if (currentTime >= nextTimeout) {
-      // Timeout reached, do something or reset variables
-      everyTenth = 0;  // Reset the counter
-      // Additional actions for timeout, if needed
-      // For example:
-      display.clearDisplay();
-      display.println("Timeout reached!");
-      display.display();
-    }
-
+  if (millis() % 10 < 4) {
+    // Timeout reached, do something or reset variables
+    // For example:
+    // Serial.println(F("Millis if"));
     if (rf95.available()) {
       uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];
       uint8_t len = sizeof(buf);
+      Serial.println(F("rf95 aviaalisdfl"));
 
       if (rf95.recv(buf, &len)) {
         serverMessage packet;
@@ -116,13 +105,28 @@ void loop() {
             // LAB ADD-ON
             display.clearDisplay();
             display.println("Lock it!");
+            Serial.println("LOCKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK");
+            // Set cursor position
+            display.setCursor(0, 0);
+            display.display();
+          } else {
+            
+            // LAB ADD-ON
+            display.clearDisplay();
+            display.println("Unlock it!");
+            // Set cursor position
+            Serial.println("TESTINGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG");
+            display.setCursor(0, 0);
             display.display();
           }
+        } else
+        {
+          Serial.println("TROLLEY IS NOT ID");
         }
       }
     }
   } else {
-    Serial.println(F("Sending to all beacons"));
+    // Serial.println(F("Sending to all beacons"));
 
     packet message;
     message.trolleyId = TROLLEY_ID;
@@ -132,14 +136,8 @@ void loop() {
 
     // If send is successful, clear it
     if (rf95.waitPacketSent()) {
-      Serial.println(F("Send successful!"));
-      Serial.println(F(""));
+      // Serial.println(F("Send successful!"));
+      // Serial.println(F(""));
     }
-    
-    everyTenth++;
-    // Initialize nextTimeout to the current time + timeoutDuration
-    nextTimeout = millis() + timeoutDuration;
-    delay(1000);
   }
-
 }
