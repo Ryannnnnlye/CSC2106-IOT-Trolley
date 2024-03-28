@@ -111,14 +111,13 @@ void loop() {
       Serial.print("Trolley ID not found: ");
       Serial.println(packet.trolleyId);
     }
-    delay(15000);
+    // delay(15000);
   } else {
     packet message;
     message.trolleyId = TROLLEY_ID;
     // Send the trolley id to the beacon
     rf95.send((uint8_t*)&message, sizeof(message));
     rf95.waitPacketSent();
-    delay(500);
     Serial.println("packet sent");
   }
 }
