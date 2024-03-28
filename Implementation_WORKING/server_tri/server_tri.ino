@@ -113,15 +113,15 @@ bool trilaterate(double dist1, double dist2, double dist3){
 
     int checklimit = 0;
     // Check for NaN and replace with average
-    if (areaABP == 0) {
+    if (areaABP == 0.0) {
         areaABP = (areaBCP + areaACP) / 2.0;
         checklimit++;
     }
-    if (areaBCP == 0) {
+    if (areaBCP == 0.0) {
         areaBCP = (areaABP + areaACP) / 2.0;
         checklimit++;
     }
-    if (areaACP == 0) {
+    if (areaACP == 0.0) {
         areaACP = (areaABP + areaBCP) / 2.0;
         checklimit++;
     }
@@ -239,11 +239,11 @@ void loop() {
 
         rf95.setFrequency(923.0);
         delay(100);
-        // for (int i=0;i<1000;i++){
+        for (int i=0;i<10;i++){
           rf95.send((uint8_t*)&msgOut, sizeof(msgOut));
-          // Serial.println("Sending..................................");
-        //   delay(1000);
-        // }
+          Serial.println("Sending..................................");
+          delay(100);
+        }
         rf95.setFrequency(920.0);
 
         // Reset RSSI vaues for the trolley
