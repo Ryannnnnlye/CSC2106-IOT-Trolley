@@ -63,7 +63,7 @@ void setup() {
 }
 
 void loop() {
-  if (rf95.available()) {
+  if (rf95.waitAvailableTimeout(1000)) {
 
     // Set back 
     uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];
@@ -111,7 +111,7 @@ void loop() {
           // Reset the variables
           numReceivedIndex[packet.trolleyId] = 0;
           rssitotal[packet.trolleyId] = 0; // O(1)
-          delay(1000);
+          // delay(100);
         }
       
     } else {
@@ -121,5 +121,5 @@ void loop() {
   // } else {
   //   // Serial.println(F("RF95 not avaialble"));
   // }
-  delay(500);
+  // delay(500);
 }
