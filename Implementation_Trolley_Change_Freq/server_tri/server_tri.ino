@@ -23,21 +23,21 @@
 #define NO_OF_BEACONS 3
 #define NO_OF_TROLLEY 1
 
-#define RF95_FREQ 920.0
+#define RF95_FREQ 921
 // #define SENDING_FREQUENCY 920.0
 
 // Singleton instance of the radio driver
 RH_RF95 rf95(RFM95_CS, RFM95_INT);
 #define OLED_RESET -1
 
-#define FREQUENCY_ROTATION_INTERVAL 3000  // Rotation interval in milliseconds (3 seconds)
+#define FREQUENCY_ROTATION_INTERVAL 10000  // Rotation interval in milliseconds (3 seconds)
 #define FREQ_1 921.0
 #define FREQ_2 922.0
 #define FREQ_3 924.0
 
 unsigned long lastFrequencyChangeTime = 0;
 int currentFrequencyIndex = 0;
-float frequencies[] = {FREQ_1, FREQ_2, FREQ_3};
+float frequencies[] = { FREQ_1, FREQ_2, FREQ_3 };
 
 typedef struct {
   uint8_t trolleyId;
@@ -62,21 +62,21 @@ uint8_t numReceived = 0;
 int16_t totalRSSI = 0;
 
 // A B C
-double locationA[2] = {12,15}; //Location of beacon 1
-double locationB[2] = {1,16}; //Location of beacon 2
-double locationC[2] = {1,1}; //Location of beacon 3
-double target[3]; //Array for target node RSSI or distance
-double target_1m[3] = {-58.5, -54.0, -55.9}; //Navigation node RSSI_1m constant for each beacon
-double target_Cpl[3] = {2.2, 2.2, 2.2}; //Target node path loss constant for each beacon
+double locationA[2] = { 12, 15 };               //Location of beacon 1
+double locationB[2] = { 1, 16 };                //Location of beacon 2
+double locationC[2] = { 1, 1 };                 //Location of beacon 3
+double target[3];                               //Array for target node RSSI or distance
+double target_1m[3] = { -58.5, -54.0, -55.9 };  //Navigation node RSSI_1m constant for each beacon
+double target_Cpl[3] = { 2.2, 2.2, 2.2 };       //Target node path loss constant for each beacon
 
 //Function to convert RSSI to distance
-double to_distance(double input_rssi, int one_m_power, int path_loss_constant){ //RSSI to convert, 1m Power, Path Loss Constant
-  double output = pow(10,(one_m_power - input_rssi)/(10*path_loss_constant));
+double to_distance(double input_rssi, int one_m_power, int path_loss_constant) {  //RSSI to convert, 1m Power, Path Loss Constant
+  double output = pow(10, (one_m_power - input_rssi) / (10 * path_loss_constant));
   return output;
 }
 
 //Function to trilaterate the 3 distances into the node x,y position
-bool trilaterate(double dist1, double dist2, double dist3){
+bool trilaterate(double dist1, double dist2, double dist3) {
   float x1 = locationA[0];
   float y1 = locationA[1];
   float x2 = locationB[0];
@@ -86,57 +86,57 @@ bool trilaterate(double dist1, double dist2, double dist3){
   float r1 = dist1;
   float r2 = dist2;
   float r3 = dist3;
-  float AB = sqrt(pow((x1-x2),2)+pow((y1-y2),2))* 60 /100;
-  float BC = sqrt(pow((x3-x2),2)+pow((y3-y2),2))* 60 /100;
-  float AC = sqrt(pow((x1-x3),2)+pow((y1-y3),2))* 60 /100;
+  float AB = sqrt(pow((x1 - x2), 2) + pow((y1 - y2), 2)) * 60 / 100;
+  float BC = sqrt(pow((x3 - x2), 2) + pow((y3 - y2), 2)) * 60 / 100;
+  float AC = sqrt(pow((x1 - x3), 2) + pow((y1 - y3), 2)) * 60 / 100;
 
   // Check if (x, y) is inside the triangle ABC
-    float sp = (AB + BC + AC)/2; // semi perimeter
-    float areaABC = sqrt((sp)*(sp-AB)*(sp-BC)*(sp-AC));
+  float sp = (AB + BC + AC) / 2;  // semi perimeter
+  float areaABC = sqrt((sp) * (sp - AB) * (sp - BC) * (sp - AC));
 
-    float spABP = (AB + r1 + r2)/2; // semi perimeter
-    float areaABP = sqrt((spABP)*(spABP-AB)*(spABP-r1)*(spABP-r2));
-    Serial.println(areaABP);
+  float spABP = (AB + r1 + r2) / 2;  // semi perimeter
+  float areaABP = sqrt((spABP) * (spABP - AB) * (spABP - r1) * (spABP - r2));
+  Serial.println(areaABP);
 
-    float spBCP = (BC + r3 + r2)/2; // semi perimeter
-    float areaBCP = sqrt((spBCP)*(spBCP-BC)*(spBCP-r3)*(spBCP-r2));
-    Serial.println(areaBCP);
-    
-    float spACP = (AC + r1 + r3)/2; // semi perimeter
-    float areaACP = sqrt((spACP)*(spACP-AC)*(spACP-r1)*(spACP-r3));
-    Serial.println(areaACP);
+  float spBCP = (BC + r3 + r2) / 2;  // semi perimeter
+  float areaBCP = sqrt((spBCP) * (spBCP - BC) * (spBCP - r3) * (spBCP - r2));
+  Serial.println(areaBCP);
 
-    if (areaABP > areaABC || areaACP > areaABC || areaBCP > areaABC){
-      return 0;
-    }
+  float spACP = (AC + r1 + r3) / 2;  // semi perimeter
+  float areaACP = sqrt((spACP) * (spACP - AC) * (spACP - r1) * (spACP - r3));
+  Serial.println(areaACP);
 
-    int checklimit = 0;
-    // Check for NaN and replace with average
-    if (areaABP == 0.0) {
-        areaABP = (areaBCP + areaACP) / 2.0;
-        checklimit++;
-    }
-    if (areaBCP == 0.0) {
-        areaBCP = (areaABP + areaACP) / 2.0;
-        checklimit++;
-    }
-    if (areaACP == 0.0) {
-        areaACP = (areaABP + areaBCP) / 2.0;
-        checklimit++;
-    }
-    if (checklimit >= 2)
-      return 0;
-    Serial.print("total area: ");
-    Serial.print((areaABP + areaACP + areaBCP));
-    
-    Serial.print("areaABC: ");
-    Serial.println(areaABC);
+  if (areaABP > areaABC || areaACP > areaABC || areaBCP > areaABC) {
+    return 0;
+  }
 
-    Serial.println("\n");
+  int checklimit = 0;
+  // Check for NaN and replace with average
+  if (areaABP == 0.0) {
+    areaABP = (areaBCP + areaACP) / 2.0;
+    checklimit++;
+  }
+  if (areaBCP == 0.0) {
+    areaBCP = (areaABP + areaACP) / 2.0;
+    checklimit++;
+  }
+  if (areaACP == 0.0) {
+    areaACP = (areaABP + areaBCP) / 2.0;
+    checklimit++;
+  }
+  if (checklimit >= 2)
+    return 0;
+  Serial.print("total area: ");
+  Serial.print((areaABP + areaACP + areaBCP));
 
-    float tolerance = 2.0; // Tolerance for area difference
-    bool insideTriangle = abs(areaABP + areaACP + areaBCP - areaABC) <= tolerance;
-    return insideTriangle;
+  Serial.print("areaABC: ");
+  Serial.println(areaABC);
+
+  Serial.println("\n");
+
+  float tolerance = 2.0;  // Tolerance for area difference
+  bool insideTriangle = abs(areaABP + areaACP + areaBCP - areaABC) <= tolerance;
+  return insideTriangle;
 }
 
 // one time function
@@ -170,9 +170,43 @@ void setup() {
 float newFrequency = frequencies[currentFrequencyIndex];
 
 void loop() {
+
+
   unsigned long currentTime = millis();
 
+  // Check if it's time to rotate frequency
+  if (currentTime - lastFrequencyChangeTime >= FREQUENCY_ROTATION_INTERVAL) {
+    lastFrequencyChangeTime = currentTime;  // Update last frequency change time
+
+    // Rotate to the next frequency
+    currentFrequencyIndex++;
+    if (currentFrequencyIndex >= sizeof(frequencies) / sizeof(frequencies[0])) {
+      currentFrequencyIndex = 0;  // Wrap around to the first frequency
+    }
+
+    // Set the new frequency
+    newFrequency = frequencies[currentFrequencyIndex];
+
+
+    // Manual reset
+  digitalWrite(RFM95_RST, LOW);
+  delay(10);
+  digitalWrite(RFM95_RST, HIGH);
+  delay(10);
+
+  // Defaults after init are 915.0MHz, modulation GFSK_Rb250Fd250, +13dbM
+  if (!rf95.setFrequency(newFrequency)) {
+    Serial.println(F("setFrequency failed"));
+    while (1)
+      ;
+  }
+
+    Serial.print("Changed frequency to: ");
+    Serial.println(newFrequency);
+  }
+
   if (rf95.available()) {
+
     uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];
     uint8_t len = sizeof(buf);
     // Receive broadcast from trolley
@@ -220,8 +254,8 @@ void loop() {
       if (allRSSIFilled) {
         Serial.println("All RSSI values filled");
         // Calculate trilateration
-        for(int i=0; i<3; i++){target[i] = to_distance(trolleyTable[receivedTrolleyIndex].rssi[i],target_1m[i], target_Cpl[i]);} //Convert target RSSI to distances
-        for(int i=0; i<3; i++){
+        for (int i = 0; i < 3; i++) { target[i] = to_distance(trolleyTable[receivedTrolleyIndex].rssi[i], target_1m[i], target_Cpl[i]); }  //Convert target RSSI to distances
+        for (int i = 0; i < 3; i++) {
           Serial.print("target");
           Serial.print(i);
           Serial.print(": ");
@@ -232,7 +266,7 @@ void loop() {
         msgOut.trolleyId = packet.trolleyId;
 
         Serial.print("lock?");
-        if (trilaterate(target[0], target[1], target[2])){
+        if (trilaterate(target[0], target[1], target[2])) {
           Serial.print("Unlock");
           msgOut.isLock = 0;
         } else {
@@ -240,14 +274,13 @@ void loop() {
           msgOut.isLock = 1;
         }
 
-        rf95.setFrequency(923.0); // to trolley
+        rf95.setFrequency(923.0);  // to trolley
         delay(100);
-        for (int i=0; i<5; i++){
+        for (int i = 0; i < 20; i++) {
           rf95.send((uint8_t*)&msgOut, sizeof(msgOut));
           delay(100);
         }
-        // rf95.setFrequency(newFrequency); 
-        rf95.setFrequency(920.0); 
+        rf95.setFrequency(newFrequency);
 
         // Reset RSSI vaues for the trolley
         for (int i = 0; i < 3; i++) {
@@ -266,22 +299,4 @@ void loop() {
   } else {
     // Serial.println(F("RF95 not avaialble"));
   }
-
-  // Check if it's time to rotate frequency
-  // if (currentTime - lastFrequencyChangeTime >= FREQUENCY_ROTATION_INTERVAL) {
-  //   lastFrequencyChangeTime = currentTime;  // Update last frequency change time
-
-  //   // Rotate to the next frequency
-  //   currentFrequencyIndex++;
-  //   if (currentFrequencyIndex >= sizeof(frequencies) / sizeof(frequencies[0])) {
-  //     currentFrequencyIndex = 0;  // Wrap around to the first frequency
-  //   }
-
-  //   // Set the new frequency
-  //   newFrequency = frequencies[currentFrequencyIndex];
-  //   rf95.setFrequency(newFrequency);
-
-  //   Serial.print("Changed frequency to: ");
-  //   Serial.println(newFrequency);
-  // }
 }
