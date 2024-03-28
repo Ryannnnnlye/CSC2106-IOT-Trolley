@@ -93,19 +93,19 @@ bool trilaterate(double dist1, double dist2, double dist3){
 
     float spABP = (AB + r1 + r2)/2; // semi perimeter
     float areaABP = sqrt(((spABP)*(spABP-AB)*(spABP-r1)*(spABP-r2)));
-    Serial.println(spABP);
-    Serial.println(spABP-AB);
-    Serial.println(spABP-r1);
-    Serial.println(spABP-r2);
-    Serial.println(areaABP);
+    // Serial.println(spABP);
+    // Serial.println(spABP-AB);
+    // Serial.println(spABP-r1);
+    // Serial.println(spABP-r2);
+    // Serial.println(areaABP);
 
     float spBCP = (BC + r3 + r2)/2; // semi perimeter
     float areaBCP = sqrt(((spBCP)*(spBCP-BC)*(spBCP-r3)*(spBCP-r2)));
-    Serial.println(areaBCP);
+    // Serial.println(areaBCP);
     
     float spACP = (AC + r1 + r3)/2; // semi perimeter
     float areaACP = sqrt(((spACP)*(spACP-AC)*(spACP-r1)*(spACP-r3)));
-    Serial.println(areaACP);
+    // Serial.println(areaACP);
 
     if (areaABP > areaABC || areaACP > areaABC || areaBCP > areaABC){
       return 0;
@@ -127,11 +127,11 @@ bool trilaterate(double dist1, double dist2, double dist3){
     }
     if (checklimit >= 2)
       return 0;
-    Serial.println("total area: ");
-    Serial.print((areaABP + areaACP + areaBCP));
+    // Serial.println("total area: ");
+    // Serial.print((areaABP + areaACP + areaBCP));
     
-    Serial.println("areaABC: ");
-    Serial.print(areaABC);
+    // Serial.println("areaABC: ");
+    // Serial.print(areaABC);
 
     Serial.println("\n");
 
@@ -227,6 +227,8 @@ void loop() {
 
         serverMessage msgOut;
         msgOut.trolleyId = packet.trolleyId;
+        Serial.print("Sending to: ");
+        Serial.println(msgOut.trolleyId);
 
         Serial.print("lock?\n");
         if (trilaterate(target[0], target[1], target[2])){
