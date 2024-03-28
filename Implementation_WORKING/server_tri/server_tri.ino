@@ -21,7 +21,7 @@
 #define STARTING_TROLLEY_ID 5
 #define TROLLEY_ID 5
 #define NO_OF_BEACONS 3
-#define NO_OF_TROLLEY 1
+#define NO_OF_TROLLEY 2
 
 #define RF95_FREQ 920.0
 // #define SENDING_FREQUENCY 920.0
@@ -57,7 +57,7 @@ double locationA[2] = {6,10}; //Location of beacon 1
 double locationB[2] = {5,1}; //Location of beacon 2
 double locationC[2] = {1,5}; //Location of beacon 3
 double target[3]; //Array for target node RSSI or distance
-double target_1m[3] = {-56.0, -60.4, -56.5}; //Navigation node RSSI_1m constant for each beacon
+double target_1m[3] = {-72.6, -60.4, -56.5}; //Navigation node RSSI_1m constant for each beacon
 double target_Cpl[3] = {2.2, 2.2, 2.2}; //Target node path loss constant for each beacon
 
 //Function to convert RSSI to distance
@@ -77,24 +77,34 @@ bool trilaterate(double dist1, double dist2, double dist3){
   float r1 = dist1;
   float r2 = dist2;
   float r3 = dist3;
-  float AB = sqrt(pow((x1-x2),2)+pow((y1-y2),2))* 60 /100;
-  float BC = sqrt(pow((x3-x2),2)+pow((y3-y2),2))* 60 /100;
-  float AC = sqrt(pow((x1-x3),2)+pow((y1-y3),2))* 60 /100;
+  Serial.println("r1: ");
+  Serial.print(r1);
+  Serial.println("r2: ");
+  Serial.print(r2);
+  Serial.println("r3: ");
+  Serial.print(r3);
+  float AB = (sqrt(pow((x1-x2),2)+pow((y1-y2),2)))* 60 /100;
+  float BC = (sqrt(pow((x3-x2),2)+pow((y3-y2),2)))* 60 /100;
+  float AC = (sqrt(pow((x1-x3),2)+pow((y1-y3),2)))* 60 /100;
 
   // Check if (x, y) is inside the triangle ABC
     float sp = (AB + BC + AC)/2; // semi perimeter
-    float areaABC = sqrt((sp)*(sp-AB)*(sp-BC)*(sp-AC));
+    float areaABC = sqrt(((sp)*(sp-AB)*(sp-BC)*(sp-AC)));
 
     float spABP = (AB + r1 + r2)/2; // semi perimeter
-    float areaABP = sqrt((spABP)*(spABP-AB)*abs(spABP-r1)*abs(spABP-r2));
+    float areaABP = sqrt(((spABP)*(spABP-AB)*(spABP-r1)*(spABP-r2)));
+    Serial.println(spABP);
+    Serial.println(spABP-AB);
+    Serial.println(spABP-r1);
+    Serial.println(spABP-r2);
     Serial.println(areaABP);
 
     float spBCP = (BC + r3 + r2)/2; // semi perimeter
-    float areaBCP = sqrt((spBCP)*(spBCP-BC)*abs(spBCP-r3)*abs(spBCP-r2));
+    float areaBCP = sqrt(((spBCP)*(spBCP-BC)*(spBCP-r3)*(spBCP-r2)));
     Serial.println(areaBCP);
     
     float spACP = (AC + r1 + r3)/2; // semi perimeter
-    float areaACP = sqrt((spACP)*(spACP-AC)*abs(spACP-r1)*abs(spACP-r3));
+    float areaACP = sqrt(((spACP)*(spACP-AC)*(spACP-r1)*(spACP-r3)));
     Serial.println(areaACP);
 
     if (areaABP > areaABC || areaACP > areaABC || areaBCP > areaABC){
@@ -169,7 +179,7 @@ void loop() {
 
       // Serial.println("received trolley id: ");
       // Serial.println(packet.trolleyId);
-      Serial.print("Update beacon ID: ");
+      Serial.println("Update beacon ID: ");
       Serial.println(packet.beaconId);
       // Serial.print("Received rssi : ");
       // Serial.println(packet.meanRSSI);
@@ -182,11 +192,6 @@ void loop() {
         int beaconIndex = packet.beaconId - STARTING_BEACON_ID;
         trolleyTable[receivedTrolleyIndex].rssi[beaconIndex] = packet.meanRSSI;
       }
-
-      // Reset packet data
-      packet.trolleyId = 0;
-      packet.beaconId = 0;
-      packet.meanRSSI = 0;
 
       // Print trolleyTable data
       for (int i = 0; i < NO_OF_TROLLEY; i++) {
@@ -225,18 +230,20 @@ void loop() {
 
         Serial.print("lock?\n");
         if (trilaterate(target[0], target[1], target[2])){
-          Serial.print("Unlock");
+          Serial.println("-------------------------------------------------Unlock");
           msgOut.isLock = 0;
         } else {
-          Serial.print("Lock");
+          Serial.println("-------------------------------------------------Lock");
           msgOut.isLock = 1;
         }
 
         rf95.setFrequency(923.0);
         delay(100);
-        for (int i=0;i<10;i++){
+        // for (int i=0;i<1000;i++){
           rf95.send((uint8_t*)&msgOut, sizeof(msgOut));
-        }
+          // Serial.println("Sending..................................");
+        //   delay(1000);
+        // }
         rf95.setFrequency(920.0);
 
         // Reset RSSI vaues for the trolley
@@ -245,6 +252,11 @@ void loop() {
         }
       }
 
+
+      // Reset packet data
+      packet.trolleyId = 0;
+      packet.beaconId = 0;
+      packet.meanRSSI = 0;
 
     } else {
       Serial.println(F("Receive failed"));
