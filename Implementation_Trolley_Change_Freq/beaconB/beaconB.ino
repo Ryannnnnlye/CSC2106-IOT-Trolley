@@ -97,7 +97,7 @@ void loop() {
           Serial.println(F(""));
 
           // Change frequncy to prevent potential congestion
-          rf95.setFrequency(920.0);
+          rf95.setFrequency(922.0);
           delay(100);
           rf95.send((uint8_t*)&packet, sizeof(packet));
           
@@ -117,5 +117,5 @@ void loop() {
   // } else {
   //   // Serial.println(F("RF95 not avaialble"));
   // }
-  delay(500);
+  // delay(500);
 }
