@@ -83,7 +83,7 @@ void loop() {
         Serial.println(rf95.lastRssi());
 
         // Check if 10 messages have been received
-        if (numReceived == 10) {
+        if (numReceived == 1) {
           // Calculate the mean RSSI
           float meanRSSI = static_cast<float>(totalRSSI) / static_cast<float>(numReceived);
           
@@ -96,12 +96,24 @@ void loop() {
           Serial.println(packet.beaconId);
           Serial.println(F(""));
 
+            // Manual reset
+          digitalWrite(RFM95_RST, LOW);
+          delay(10);
+          digitalWrite(RFM95_RST, HIGH);
+          delay(10);
+
           // Change frequncy to prevent potential congestion
-          // rf95.setFrequency(921.0);
-          rf95.setFrequency(920.0);
-          delay(100);
+          rf95.setFrequency(921.0);
           rf95.send((uint8_t*)&packet, sizeof(packet));
-          
+          rf95.waitPacketSent();
+
+
+          // Manual reset
+          digitalWrite(RFM95_RST, LOW);
+          delay(10);
+          digitalWrite(RFM95_RST, HIGH);
+          delay(10);
+
           rf95.setFrequency(923.0);
 
           // Reset the variables
