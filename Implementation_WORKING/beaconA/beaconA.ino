@@ -12,7 +12,8 @@
 #define RFM95_INT 2
 #define BEACON_ID 2
 #define TROLLEY_ID 5
-#define SERVER_ID 5
+#define SERVER_ID 1
+#define numberOfTrollies 10 
 
 #define RF95_FREQ 915.0
 
@@ -26,10 +27,11 @@ typedef struct {
   float meanRSSI;
 } LoRaMessage;
 
-void (*resetFunc)(void) = 0;
 
-uint8_t numReceived = 0;
-int16_t totalRSSI = 0;
+uint8_t numReceivedIndex[numberOfTrollies] = {0};
+int16_t rssitotal[numberOfTrollies] = {0};
+
+void (*resetFunc)(void) = 0;
 
 // one time function
 void setup() {
@@ -62,54 +64,56 @@ void setup() {
 
 void loop() {
   if (rf95.available()) {
-    Serial.println("Available");
+
     // Set back 
     uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];
     uint8_t len = sizeof(buf);
 
     // Receive broadcast from trolley
     if (rf95.recv(buf, &len)) {
+
       LoRaMessage packet;
       memcpy(&packet, buf, sizeof(LoRaMessage));
 
-      Serial.println(packet.trolleyId);
-      if (packet.trolleyId == TROLLEY_ID) {
-        numReceived++;
-        totalRSSI += rf95.lastRssi();
+      // increase the packet count for that trolley
+      numReceivedIndex[packet.trolleyId]++; 
 
-        Serial.print(F("Received from trolley ("));
-        Serial.print(numReceived);
-        Serial.print(F(" times) The RSSI is: "));
-        Serial.println(rf95.lastRssi());
+      // increase rssi for that trolley
+      rssitotal[packet.trolleyId] += rf95.lastRssi();
+
+      Serial.print("The trolley id is ");
+      Serial.print(packet.trolleyId);
+      Serial.println();
+      Serial.print(F("Received from trolley ("));
+      Serial.print(numReceivedIndex[packet.trolleyId]);
+      Serial.print(F(" times) The total RSSI is: "));
+      Serial.println(rssitotal[packet.trolleyId]);
 
         // Check if 10 messages have been received
-        if (numReceived == 10) {
-          // Calculate the mean RSSI
-          float meanRSSI = static_cast<float>(totalRSSI) / static_cast<float>(numReceived);
-          
+        if (numReceivedIndex[packet.trolleyId] == 10) {
+          float meanRSSI = static_cast<float>(rssitotal[packet.trolleyId]) / static_cast<float>(numReceivedIndex[packet.trolleyId]);
+         
           packet.meanRSSI = meanRSSI;
           packet.beaconId = BEACON_ID;
 
           Serial.print(F("Mean RSSI (2 DP): "));
           Serial.println(packet.meanRSSI);
-          Serial.print(F("Beacon ID: "));
-          Serial.println(packet.beaconId);
+          Serial.print(F("Trolley ID: "));
+          Serial.println(packet.trolleyId);
           Serial.println(F(""));
 
           // Change frequncy to prevent potential congestion
           rf95.setFrequency(920.0);
           delay(100);
           rf95.send((uint8_t*)&packet, sizeof(packet));
-          
           rf95.setFrequency(923.0);
 
           // Reset the variables
-          numReceived = 0;
-          totalRSSI = 0;
-
+          numReceivedIndex[packet.trolleyId] = 0;
+          rssitotal[packet.trolleyId] = 0; // O(1)
           delay(1000);
         }
-      }
+      
     } else {
       Serial.println(F("Receive failed"));
     }
