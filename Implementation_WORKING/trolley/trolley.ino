@@ -9,11 +9,10 @@
 #define RFM95_CS 10
 #define RFM95_RST 9
 #define RFM95_INT 2
-#define TROLLEY_ID 5
+#define TROLLEY_ID 6
 
-#define RF95_FREQ 915.0
+#define RF95_FREQ 923.0
 
-// LAB ADD-ONS
 #define SCREEN_WIDTH 128  // OLED display width, in pixels
 #define SCREEN_HEIGHT 32  // OLED display height, in pixels
 // Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
@@ -54,24 +53,22 @@ void setup() {
   }
 
   // Defaults after init are 915.0MHz, modulation GFSK_Rb250Fd250, +13dbM
-  if (!rf95.setFrequency(RF95_FREQ)) {
+  if (!rf95.setFrequency(915)) {
     Serial.println(F("setFrequency failed"));
     while (1)
       ;
   }
 
-  // LAB ADD-ON
-  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { // Address or 0x3D for
+  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {  // Address or 0x3D for
     Serial.println(F("SSD1306 allocation failed"));
-    for (;;)
-    {
-        delay(1000);
+    for (;;) {
+      delay(1000);
     }
   }
   // Setup oled display
-  display.setTextSize(1);      // Normal 1:1 pixel scale
-  display.setTextColor(WHITE); // Draw white text
-  display.setCursor(0, 0);     // Start at top-left corner
+  display.setTextSize(1);       // Normal 1:1 pixel scale
+  display.setTextColor(WHITE);  // Draw white text
+  display.setCursor(0, 0);      // Start at top-left corner
 
   // Simple text
   display.clearDisplay();
@@ -80,64 +77,47 @@ void setup() {
 
   rf95.setTxPower(13, false);
   rf95.setFrequency(923.0);
+
+  Serial.println("Done");
 }
 
-int everyAlternate = 0;
-unsigned long timeoutDuration = 400;  // 5 seconds timeout
-unsigned long nextTimeout = millis() + timeoutDuration;  // Variable to store the next timeout time=
-unsigned long currentTime = millis();
-
 void loop() {
-  if (millis() % 10 < 4) {
-    // Timeout reached, do something or reset variables
-    // For example:
-    // Serial.println(F("Millis if"));
-    if (rf95.available()) {
-      uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];
-      uint8_t len = sizeof(buf);
-      Serial.println(F("rf95 aviaalisdfl"));
+  if (rf95.waitAvailableTimeout(500))
+    Serial.println("rf95");
+  uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];
+  uint8_t len = sizeof(buf);
 
-      if (rf95.recv(buf, &len)) {
-        serverMessage packet;
-        memcpy(&packet, buf, sizeof(serverMessage));
-        if (packet.trolleyId == TROLLEY_ID) {
-          if (packet.isLock == 1) {
-            // LAB ADD-ON
-            display.clearDisplay();
-            display.println("Lock it!");
-            Serial.println("LOCKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK");
-            // Set cursor position
-            display.setCursor(0, 0);
-            display.display();
-          } else {
-            
-            // LAB ADD-ON
-            display.clearDisplay();
-            display.println("Unlock it!");
-            // Set cursor position
-            Serial.println("TESTINGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG");
-            display.setCursor(0, 0);
-            display.display();
-          }
-        } else
-        {
-          Serial.println("TROLLEY IS NOT ID");
-        }
+  if (rf95.recv(buf, &len)) {
+    serverMessage packet;
+    memcpy(&packet, buf, sizeof(serverMessage));
+    Serial.println(packet.trolleyId);
+    if (packet.trolleyId == TROLLEY_ID) {
+      if (packet.isLock == 1) {
+        display.clearDisplay();
+        display.println("Lock Wheels!");
+        Serial.println("Lock Wheels");
+        // Set cursor position
+        display.setCursor(0, 0);
+        display.display();
+      } else {
+        display.clearDisplay();
+        display.println("Unlock Wheels!");
+        // Set cursor position
+        Serial.println("Unlock Wheels");
+        display.setCursor(0, 0);
+        display.display();
       }
+    } else {
+      Serial.print("Trolley ID not found: ");
+      Serial.println(packet.trolleyId);
     }
   } else {
-    // Serial.println(F("Sending to all beacons"));
 
     packet message;
     message.trolleyId = TROLLEY_ID;
-
     // Send the trolley id to the beacon
     rf95.send((uint8_t*)&message, sizeof(message));
-
-    // If send is successful, clear it
-    if (rf95.waitPacketSent()) {
-      // Serial.println(F("Send successful!"));
-      // Serial.println(F(""));
-    }
+    rf95.waitPacketSent();
+    Serial.println("packet sent");
   }
 }
