@@ -30,15 +30,6 @@
 RH_RF95 rf95(RFM95_CS, RFM95_INT);
 #define OLED_RESET -1
 
-#define FREQUENCY_ROTATION_INTERVAL 3000  // Rotation interval in milliseconds (3 seconds)
-#define FREQ_1 921.0
-#define FREQ_2 922.0
-#define FREQ_3 924.0
-
-unsigned long lastFrequencyChangeTime = 0;
-int currentFrequencyIndex = 0;
-float frequencies[] = {FREQ_1, FREQ_2, FREQ_3};
-
 typedef struct {
   uint8_t trolleyId;
   uint8_t beaconId;
@@ -167,11 +158,7 @@ void setup() {
   Serial.println("Setup complete");
 }
 
-float newFrequency = frequencies[currentFrequencyIndex];
-
 void loop() {
-  unsigned long currentTime = millis();
-
   if (rf95.available()) {
     uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];
     uint8_t len = sizeof(buf);
@@ -233,10 +220,10 @@ void loop() {
 
         Serial.print("lock?");
         if (trilaterate(target[0], target[1], target[2])){
-          Serial.print("Unlock");
+          Serial.println("------------------------------------Unlock");
           msgOut.isLock = 0;
         } else {
-          Serial.print("Lock");
+          Serial.println("------------------------------------Lock");
           msgOut.isLock = 1;
         }
 
@@ -266,22 +253,4 @@ void loop() {
   } else {
     // Serial.println(F("RF95 not avaialble"));
   }
-
-  // Check if it's time to rotate frequency
-  // if (currentTime - lastFrequencyChangeTime >= FREQUENCY_ROTATION_INTERVAL) {
-  //   lastFrequencyChangeTime = currentTime;  // Update last frequency change time
-
-  //   // Rotate to the next frequency
-  //   currentFrequencyIndex++;
-  //   if (currentFrequencyIndex >= sizeof(frequencies) / sizeof(frequencies[0])) {
-  //     currentFrequencyIndex = 0;  // Wrap around to the first frequency
-  //   }
-
-  //   // Set the new frequency
-  //   newFrequency = frequencies[currentFrequencyIndex];
-  //   rf95.setFrequency(newFrequency);
-
-  //   Serial.print("Changed frequency to: ");
-  //   Serial.println(newFrequency);
-  // }
 }
