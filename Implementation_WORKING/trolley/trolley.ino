@@ -9,7 +9,7 @@
 #define RFM95_CS 10
 #define RFM95_RST 9
 #define RFM95_INT 2
-#define TROLLEY_ID 6
+#define TROLLEY_ID 5
 
 #define RF95_FREQ 923.0
 
@@ -82,7 +82,7 @@ void setup() {
 }
 
 void loop() {
-  if (rf95.waitAvailableTimeout(500))
+  if (rf95.waitAvailableTimeout(1000))
     Serial.println("rf95");
   uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];
   uint8_t len = sizeof(buf);
@@ -111,6 +111,7 @@ void loop() {
       Serial.print("Trolley ID not found: ");
       Serial.println(packet.trolleyId);
     }
+    delay(15000);
   } else {
 
     packet message;
@@ -118,6 +119,7 @@ void loop() {
     // Send the trolley id to the beacon
     rf95.send((uint8_t*)&message, sizeof(message));
     rf95.waitPacketSent();
+    delay(500);
     Serial.println("packet sent");
   }
 }
