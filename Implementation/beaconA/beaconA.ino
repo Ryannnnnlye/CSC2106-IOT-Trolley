@@ -1,4 +1,3 @@
-
 #include <Adafruit_SSD1306.h>
 #include <splash.h>
 #include <SPI.h>
@@ -11,10 +10,9 @@
 #define RFM95_CS 10
 #define RFM95_RST 9
 #define RFM95_INT 2
-#define BEACON_ID 4
-#define TROLLEY_ID 5
-#define SERVER_ID 1
-#define numberOfTrollies 10 
+#define BEACON_ID 2
+#define TROLLEY_ID 10
+// #define SERVER_ID 5
 
 #define RF95_FREQ 915.0
 
@@ -28,11 +26,12 @@ typedef struct {
   float meanRSSI;
 } LoRaMessage;
 
-
-uint8_t numReceivedIndex[numberOfTrollies] = {0};
-int16_t rssitotal[numberOfTrollies] = {0};
+const uint8_t sharedKey[] = {0xAB, 0xCD, 0xEF, 0x12, 0x34}; // Example key, replace with your own
 
 void (*resetFunc)(void) = 0;
+
+uint8_t numReceived = 0;
+int16_t totalRSSI = 0;
 
 // one time function
 void setup() {
@@ -63,58 +62,67 @@ void setup() {
   rf95.setFrequency(923.0);
 }
 
+// Function to perform XOR encryption and decryption
+void xorEncryptDecrypt(uint8_t *data, size_t len, const uint8_t *key, size_t keyLen) {
+  for (size_t i = 0; i < len; ++i) {
+    data[i] ^= key[i % keyLen];
+  }
+}
+
 void loop() {
-  if (rf95.waitAvailableTimeout(1000)) {
-
-
+  if (rf95.available()) {
+    Serial.println("Available");
     // Set back 
     uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];
     uint8_t len = sizeof(buf);
 
     // Receive broadcast from trolley
     if (rf95.recv(buf, &len)) {
-
+      // Decrypt the received message
+      xorEncryptDecrypt(buf, len, sharedKey, sizeof(sharedKey));
       LoRaMessage packet;
       memcpy(&packet, buf, sizeof(LoRaMessage));
 
-      // increase the packet count for that trolley
-      numReceivedIndex[packet.trolleyId]++; 
+      Serial.println(packet.trolleyId);
+      if (packet.trolleyId == TROLLEY_ID) {
+        numReceived++;
+        totalRSSI += rf95.lastRssi();
 
-      // increase rssi for that trolley
-      rssitotal[packet.trolleyId] += rf95.lastRssi();
-
-      Serial.print("The trolley id is ");
-      Serial.print(packet.trolleyId);
-      Serial.println();
-      Serial.print(F("Received from trolley ("));
-      Serial.print(numReceivedIndex[packet.trolleyId]);
-      Serial.print(F(" times) The total RSSI is: "));
-      Serial.println(rssitotal[packet.trolleyId]);
+        Serial.print(F("Received from trolley ("));
+        Serial.print(numReceived);
+        Serial.print(F(" times) The RSSI is: "));
+        Serial.println(rf95.lastRssi());
 
         // Check if 10 messages have been received
-        if (numReceivedIndex[packet.trolleyId] == 10) {
-          float meanRSSI = static_cast<float>(rssitotal[packet.trolleyId]) / static_cast<float>(numReceivedIndex[packet.trolleyId]);
-         
+        if (numReceived == 10) {
+          // Calculate the mean RSSI
+          float meanRSSI = static_cast<float>(totalRSSI) / static_cast<float>(numReceived);
+          
           packet.meanRSSI = meanRSSI;
           packet.beaconId = BEACON_ID;
 
           Serial.print(F("Mean RSSI (2 DP): "));
           Serial.println(packet.meanRSSI);
-          Serial.print(F("Trolley ID: "));
-          Serial.println(packet.trolleyId);
+          Serial.print(F("Beacon ID: "));
+          Serial.println(packet.beaconId);
           Serial.println(F(""));
 
           // Change frequncy to prevent potential congestion
           rf95.setFrequency(920.0);
           delay(100);
+          // Encrypt the message before sending
+          xorEncryptDecrypt((uint8_t*)&packet, sizeof(packet), sharedKey, sizeof(sharedKey));
           rf95.send((uint8_t*)&packet, sizeof(packet));
+          
           rf95.setFrequency(923.0);
 
           // Reset the variables
-          numReceivedIndex[packet.trolleyId] = 0;
-          rssitotal[packet.trolleyId] = 0; // O(1),
+          numReceived = 0;
+          totalRSSI = 0;
+
+          delay(1000);
         }
-      
+      }
     } else {
       Serial.println(F("Receive failed"));
     }
@@ -122,5 +130,5 @@ void loop() {
   // } else {
   //   // Serial.println(F("RF95 not avaialble"));
   // }
-
+  delay(500);
 }

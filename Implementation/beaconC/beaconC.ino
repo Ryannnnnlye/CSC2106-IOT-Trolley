@@ -5,12 +5,12 @@
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 
-// This is beacon A
+// This is beacon C
 
 #define RFM95_CS 10
 #define RFM95_RST 9
 #define RFM95_INT 2
-#define BEACON_ID 2
+#define BEACON_ID 4
 #define TROLLEY_ID 10
 // #define SERVER_ID 5
 
@@ -25,6 +25,8 @@ typedef struct {
   uint8_t beaconId;
   float meanRSSI;
 } LoRaMessage;
+
+const uint8_t sharedKey[] = {0xAB, 0xCD, 0xEF, 0x12, 0x34}; // Example key, replace with your own
 
 void (*resetFunc)(void) = 0;
 
@@ -60,6 +62,13 @@ void setup() {
   rf95.setFrequency(923.0);
 }
 
+// Function to perform XOR encryption and decryption
+void xorEncryptDecrypt(uint8_t *data, size_t len, const uint8_t *key, size_t keyLen) {
+  for (size_t i = 0; i < len; ++i) {
+    data[i] ^= key[i % keyLen];
+  }
+}
+
 void loop() {
   if (rf95.available()) {
     Serial.println("Available");
@@ -69,6 +78,8 @@ void loop() {
 
     // Receive broadcast from trolley
     if (rf95.recv(buf, &len)) {
+      // Decrypt the received message
+      xorEncryptDecrypt(buf, len, sharedKey, sizeof(sharedKey));
       LoRaMessage packet;
       memcpy(&packet, buf, sizeof(LoRaMessage));
 
@@ -99,6 +110,8 @@ void loop() {
           // Change frequncy to prevent potential congestion
           rf95.setFrequency(920.0);
           delay(100);
+          // Encrypt the message before sending
+          xorEncryptDecrypt((uint8_t*)&packet, sizeof(packet), sharedKey, sizeof(sharedKey));
           rf95.send((uint8_t*)&packet, sizeof(packet));
           
           rf95.setFrequency(923.0);

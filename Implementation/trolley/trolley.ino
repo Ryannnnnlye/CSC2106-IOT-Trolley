@@ -9,7 +9,7 @@
 #define RFM95_CS 10
 #define RFM95_RST 9
 #define RFM95_INT 2
-#define TROLLEY_ID 5
+#define TROLLEY_ID 10
 
 #define RF95_FREQ 923.0
 
@@ -17,8 +17,16 @@
 #define SCREEN_HEIGHT 32  // OLED display height, in pixels
 // Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
 // Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
-#define OLED_RESET     -1 // Reset pin # (or -1 if sharing Arduino reset pin)
+#define OLED_RESET -1  // Reset pin # (or -1 if sharing Arduino reset pin)
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
+const uint8_t sharedKey[] = { 0xAB, 0xCD, 0xEF, 0x12, 0x34 };
+
+void xorEncryptDecrypt(uint8_t *data, size_t len, const uint8_t *key, size_t keyLen) {
+  for (size_t i = 0; i < len; ++i) {
+    data[i] ^= key[i % keyLen];
+  }
+};
 
 typedef struct {
   uint8_t trolleyId;
@@ -34,6 +42,8 @@ typedef struct {
   uint8_t trolleyId;
 } packet;
 
+unsigned long startTime = 0;
+
 void setup() {
 
   Serial.begin(19200);
@@ -47,7 +57,6 @@ void setup() {
 
   while (!rf95.init()) {
     Serial.println(F("LoRa radio init failed"));
-
     while (1)
       ;
   }
@@ -82,43 +91,60 @@ void setup() {
 }
 
 void loop() {
-  if (rf95.waitAvailableTimeout(1000))
-    Serial.println("rf95");
-  uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];
-  uint8_t len = sizeof(buf);
+  if (rf95.waitAvailableTimeout(1000)) {
+    uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];
+    uint8_t len = sizeof(buf);
 
-  if (rf95.recv(buf, &len)) {
-    serverMessage packet;
-    memcpy(&packet, buf, sizeof(serverMessage));
-    Serial.println(packet.trolleyId);
-    if (packet.trolleyId == TROLLEY_ID) {
-      if (packet.isLock == 1) {
-        display.clearDisplay();
-        display.println("Lock Wheels!");
-        Serial.println("Lock Wheels");
-        // Set cursor position
-        display.setCursor(0, 0);
-        display.display();
+    if (rf95.recv(buf, &len)) {
+      xorEncryptDecrypt(buf, len, sharedKey, sizeof(sharedKey));
+      serverMessage packet;
+
+      memcpy(&packet, buf, sizeof(serverMessage));
+ 
+      if (packet.trolleyId == TROLLEY_ID) {
+        Serial.print("Ending timer at:");
+        unsigned long endTime = millis();
+        Serial.println(endTime);
+
+        Serial.print("Difference in time: ");
+        Serial.println(endTime - startTime);
+        // Serial.println("")
+        Serial.println("----------------");
+        startTime = 0;
+        Serial.println("Received command from server:");
+        if (packet.isLock == 1) {
+          display.clearDisplay();
+          display.println("Lock Wheels!");
+          Serial.println("Lock Wheels");
+          // Set cursor position
+          display.setCursor(0, 0);
+          display.display();
+        } else {
+          display.clearDisplay();
+          display.println("Unlock Wheels!");
+          // Set cursor position
+          Serial.println("Unlock Wheels");
+          display.setCursor(0, 0);
+          display.display();
+        }
       } else {
-        display.clearDisplay();
-        display.println("Unlock Wheels!");
-        // Set cursor position
-        Serial.println("Unlock Wheels");
-        display.setCursor(0, 0);
-        display.display();
+        Serial.print("Trolley ID not found: ");
+        Serial.println(packet.trolleyId);
       }
-    } else {
-      Serial.print("Trolley ID not found: ");
-      Serial.println(packet.trolleyId);
     }
-    delay(15000);
   } else {
     packet message;
     message.trolleyId = TROLLEY_ID;
     // Send the trolley id to the beacon
-    rf95.send((uint8_t*)&message, sizeof(message));
+    xorEncryptDecrypt((uint8_t *)&message, sizeof(message), sharedKey, sizeof(sharedKey));
+    rf95.send((uint8_t *)&message, sizeof(message));
     rf95.waitPacketSent();
-    delay(500);
-    Serial.println("packet sent");
+    if (startTime == 0) {
+      startTime = millis();
+      Serial.print("Starting timer at: ");
+      Serial.println(startTime);
+    }
+    Serial.println("Broadcasting packet...");
+
   }
 }

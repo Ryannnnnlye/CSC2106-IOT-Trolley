@@ -11,8 +11,8 @@
 #define RFM95_RST 9
 #define RFM95_INT 2
 #define BEACON_ID 3
-#define TROLLEY_ID 5
-#define SERVER_ID 5
+#define TROLLEY_ID 10
+// #define SERVER_ID 5
 
 #define RF95_FREQ 915.0
 
@@ -25,6 +25,8 @@ typedef struct {
   uint8_t beaconId;
   float meanRSSI;
 } LoRaMessage;
+
+const uint8_t sharedKey[] = {0xAB, 0xCD, 0xEF, 0x12, 0x34}; // Example key, replace with your own
 
 void (*resetFunc)(void) = 0;
 
@@ -60,6 +62,13 @@ void setup() {
   rf95.setFrequency(923.0);
 }
 
+// Function to perform XOR encryption and decryption
+void xorEncryptDecrypt(uint8_t *data, size_t len, const uint8_t *key, size_t keyLen) {
+  for (size_t i = 0; i < len; ++i) {
+    data[i] ^= key[i % keyLen];
+  }
+}
+
 void loop() {
   if (rf95.available()) {
     Serial.println("Available");
@@ -69,6 +78,8 @@ void loop() {
 
     // Receive broadcast from trolley
     if (rf95.recv(buf, &len)) {
+      // Decrypt the received message
+      xorEncryptDecrypt(buf, len, sharedKey, sizeof(sharedKey));
       LoRaMessage packet;
       memcpy(&packet, buf, sizeof(LoRaMessage));
 
@@ -83,7 +94,7 @@ void loop() {
         Serial.println(rf95.lastRssi());
 
         // Check if 10 messages have been received
-        if (numReceived == 1) {
+        if (numReceived == 10) {
           // Calculate the mean RSSI
           float meanRSSI = static_cast<float>(totalRSSI) / static_cast<float>(numReceived);
           
@@ -96,35 +107,14 @@ void loop() {
           Serial.println(packet.beaconId);
           Serial.println(F(""));
 
-              // Manual reset
-          digitalWrite(RFM95_RST, LOW);
-          delay(10);
-          digitalWrite(RFM95_RST, HIGH);
-          delay(10);
-
           // Change frequncy to prevent potential congestion
-          rf95.setFrequency(922.0);
-
-          
-
+          rf95.setFrequency(920.0);
+          delay(100);
+          // Encrypt the message before sending
+          xorEncryptDecrypt((uint8_t*)&packet, sizeof(packet), sharedKey, sizeof(sharedKey));
           rf95.send((uint8_t*)&packet, sizeof(packet));
-                    rf95.waitPacketSent();
-
-
-          // Manual reset
-          digitalWrite(RFM95_RST, LOW);
-          delay(10);
-          digitalWrite(RFM95_RST, HIGH);
-          delay(10);
-
           
           rf95.setFrequency(923.0);
-
-   
-
-     
-          
-          
 
           // Reset the variables
           numReceived = 0;
@@ -140,5 +130,5 @@ void loop() {
   // } else {
   //   // Serial.println(F("RF95 not avaialble"));
   // }
-  // delay(500);
+  delay(500);
 }
