@@ -11,8 +11,8 @@
 #define RFM95_RST 9
 #define RFM95_INT 2
 #define BEACON_ID 3
-#define TROLLEY_ID 5
-#define SERVER_ID 5
+#define TROLLEY_ID 10
+// #define SERVER_ID 5
 
 #define RF95_FREQ 915.0
 

@@ -10,7 +10,7 @@
 #define RFM95_CS 10
 #define RFM95_RST 9
 #define RFM95_INT 2
-#define BEACON_ID 2
+#define BEACON_ID 5
 #define TROLLEY_ID 10
 // #define SERVER_ID 5
 

@@ -12,15 +12,17 @@
 #define RFM95_INT 2
 
 #define SERVER_ID 1
-#define BEACON_A 2
-#define BEACON_B 3
-#define BEACON_C 4
+// #define BEACON_A 2
+// #define BEACON_B 3
+// #define BEACON_C 4
+// #define BEACON_D 5
 #define STARTING_BEACON_ID 2
 
 // Used to determine the source to minus from to get the index
-#define STARTING_TROLLEY_ID 5
-#define TROLLEY_ID 5
-#define NO_OF_BEACONS 3
+#define STARTING_TROLLEY_ID 10
+#define TROLLEY_ID 10
+#define NO_OF_BEACONS 4
+#define NO_BEACONS_NEEDED_FOR_TRILATERATION 3
 #define NO_OF_TROLLEY 1
 
 #define RF95_FREQ 920.0
@@ -42,7 +44,7 @@ typedef struct {
 } serverMessage;
 
 struct TrolleyTable {
-  float rssi[NO_OF_BEACONS];
+  float rssi[NO_OF_BEACONS]; // that index of the rssi is the index of the beacon
 };
 
 TrolleyTable trolleyTable[NO_OF_TROLLEY];
@@ -53,12 +55,19 @@ uint8_t numReceived = 0;
 int16_t totalRSSI = 0;
 
 // A B C
-double locationA[2] = {12,15}; //Location of beacon 1
-double locationB[2] = {1,16}; //Location of beacon 2
-double locationC[2] = {1,1}; //Location of beacon 3
+// double locationA[2] = {12,15}; //Location of beacon 1
+// double locationB[2] = {1,16}; //Location of beacon 2
+// double locationC[2] = {1,1}; //Location of beacon 3
+// double locationD[2] = {12,0}; //Location of beacon 4
+uint8_t location[NO_OF_BEACONS][2] = {
+  {12,15},
+  {1,16},
+  {1,1},
+  {12,0}
+};
 double target[3]; //Array for target node RSSI or distance
-double target_1m[3] = {-58.5, -54.0, -55.9}; //Navigation node RSSI_1m constant for each beacon
-double target_Cpl[3] = {2.2, 2.2, 2.2}; //Target node path loss constant for each beacon
+double target_1m[4] = {-58.5, -54.0, -55.9, -56.0}; //Navigation node RSSI_1m constant for each beacon
+double target_Cpl[4] = {2.2, 2.2, 2.2, 2.2}; //Target node path loss constant for each beacon
 
 //Function to convert RSSI to distance
 double to_distance(double input_rssi, int one_m_power, int path_loss_constant){ //RSSI to convert, 1m Power, Path Loss Constant
@@ -67,13 +76,19 @@ double to_distance(double input_rssi, int one_m_power, int path_loss_constant){ 
 }
 
 //Function to trilaterate the 3 distances into the node x,y position
-bool trilaterate(double dist1, double dist2, double dist3){
-  float x1 = locationA[0];
-  float y1 = locationA[1];
-  float x2 = locationB[0];
-  float y2 = locationB[1];
-  float x3 = locationC[0];
-  float y3 = locationC[1];
+bool trilaterate(uint8_t serverId1, double dist1, uint8_t serverId2, double dist2, uint8_t serverId3, double dist3){
+  // float x1 = locationA[0];
+  // float y1 = locationA[1];
+  // float x2 = locationB[0];
+  // float y2 = locationB[1];
+  // float x3 = locationC[0];
+  // float y3 = locationC[1];
+  uint8_t x1 = location[serverId1][0];
+  uint8_t y1 = location[serverId1][1];
+  uint8_t x2 = location[serverId2][0];
+  uint8_t y2 = location[serverId2][1];
+  uint8_t x3 = location[serverId3][0];
+  uint8_t y3 = location[serverId3][1];
   float r1 = dist1;
   float r2 = dist2;
   float r3 = dist3;
@@ -196,30 +211,39 @@ void loop() {
       }
 
       // Find when all 3 beacon's RSSI value are filled
-      bool allRSSIFilled = true;
-      for (int i = 0; i < NO_OF_BEACONS; i++) {
+      uint8_t allowableZeroForTrilateration = NO_BEACONS_NEEDED_FOR_TRILATERATION - NO_OF_BEACONS + 1;
+      for (int i = 0; i < NO_BEACONS_NEEDED_FOR_TRILATERATION; i++) {
         if (trolleyTable[receivedTrolleyIndex].rssi[i] == 0.0) {
-          allRSSIFilled = false;
-          break;
+          allowableZeroForTrilateration--;
+          if (allowableZeroForTrilateration == 0) {
+            Serial.println("All RSSI values filled");
+            break;
+          }
         }
       }
 
-      if (allRSSIFilled) {
+      if (allowableZeroForTrilateration == 0) {
+        uint8_t recordedIndexBeacons[NO_BEACONS_NEEDED_FOR_TRILATERATION];
         Serial.println("All RSSI values filled");
         // Calculate trilateration
-        for(int i=0; i<3; i++){target[i] = to_distance(trolleyTable[receivedTrolleyIndex].rssi[i],target_1m[i], target_Cpl[i]);} //Convert target RSSI to distances
-        for(int i=0; i<3; i++){
+        for(int i=0; i<NO_OF_BEACONS; i++){
+          if (trolleyTable[receivedTrolleyIndex].rssi[i] == 0.0){
+            continue; // Skip if RSSI value is 0
+          }
+          recordedIndexBeacons[i] = i;
+          target[i] = to_distance(trolleyTable[receivedTrolleyIndex].rssi[i], target_1m[i], target_Cpl[i]);
+
           Serial.print("target");
           Serial.print(i);
           Serial.print(": ");
           Serial.println(target[i]);
-        }
+        } //Convert target RSSI to distances
 
         serverMessage msgOut;
         msgOut.trolleyId = packet.trolleyId;
 
         Serial.print("lock?");
-        if (trilaterate(target[0], target[1], target[2])){
+        if (trilaterate(target[recordedIndexBeacons[0]], target[0], target[recordedIndexBeacons[1]], target[1], target[recordedIndexBeacons[2]], target[2])){
           Serial.println("------------------------------------Unlock");
           msgOut.isLock = 0;
         } else {
@@ -237,7 +261,7 @@ void loop() {
         rf95.setFrequency(920.0); 
 
         // Reset RSSI vaues for the trolley
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < NO_OF_BEACONS; i++) {
           trolleyTable[receivedTrolleyIndex].rssi[i] = 0.0;
         }
       }
