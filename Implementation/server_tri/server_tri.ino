@@ -12,10 +12,6 @@
 #define RFM95_INT 2
 
 #define SERVER_ID 1
-// #define BEACON_A 2
-// #define BEACON_B 3
-// #define BEACON_C 4
-// #define BEACON_D 5
 #define STARTING_BEACON_ID 2
 
 // Used to determine the source to minus from to get the index
@@ -47,6 +43,8 @@ struct TrolleyTable {
   float rssi[NO_OF_BEACONS]; // that index of the rssi is the index of the beacon
 };
 
+const uint8_t sharedKey[] = {0xAB, 0xCD, 0xEF, 0x12, 0x34}; // Example key, replace with your own
+
 TrolleyTable trolleyTable[NO_OF_TROLLEY];
 
 void (*resetFunc)(void) = 0;
@@ -54,11 +52,7 @@ void (*resetFunc)(void) = 0;
 uint8_t numReceived = 0;
 int16_t totalRSSI = 0;
 
-// A B C
-// double locationA[2] = {12,15}; //Location of beacon 1
-// double locationB[2] = {1,16}; //Location of beacon 2
-// double locationC[2] = {1,1}; //Location of beacon 3
-// double locationD[2] = {12,0}; //Location of beacon 4
+// A B C D
 uint8_t location[NO_OF_BEACONS][2] = {
   {12,15},
   {1,16},
@@ -69,6 +63,12 @@ double target[3]; //Array for target node RSSI or distance
 double target_1m[4] = {-58.5, -54.0, -55.9, -56.0}; //Navigation node RSSI_1m constant for each beacon
 double target_Cpl[4] = {2.2, 2.2, 2.2, 2.2}; //Target node path loss constant for each beacon
 
+void xorEncryptDecrypt(uint8_t *data, size_t len, const uint8_t *key, size_t keyLen) {
+  for (size_t i = 0; i < len; ++i) {
+    data[i] ^= key[i % keyLen];
+  }
+}
+
 //Function to convert RSSI to distance
 double to_distance(double input_rssi, int one_m_power, int path_loss_constant){ //RSSI to convert, 1m Power, Path Loss Constant
   double output = pow(10,(one_m_power - input_rssi)/(10*path_loss_constant));
@@ -77,12 +77,6 @@ double to_distance(double input_rssi, int one_m_power, int path_loss_constant){ 
 
 //Function to trilaterate the 3 distances into the node x,y position
 bool trilaterate(uint8_t serverId1, double dist1, uint8_t serverId2, double dist2, uint8_t serverId3, double dist3){
-  // float x1 = locationA[0];
-  // float y1 = locationA[1];
-  // float x2 = locationB[0];
-  // float y2 = locationB[1];
-  // float x3 = locationC[0];
-  // float y3 = locationC[1];
   uint8_t x1 = location[serverId1][0];
   uint8_t y1 = location[serverId1][1];
   uint8_t x2 = location[serverId2][0];
@@ -112,7 +106,7 @@ bool trilaterate(uint8_t serverId1, double dist1, uint8_t serverId2, double dist
     float areaACP = sqrt((spACP)*(spACP-AC)*(spACP-r1)*(spACP-r3));
     Serial.println(areaACP);
 
-    if (areaABP > areaABC || areaACP > areaABC || areaBCP > areaABC){
+    if (areaABP > areaABC  areaACP > areaABC  areaBCP > areaABC){
       return 0;
     }
 
@@ -141,7 +135,7 @@ bool trilaterate(uint8_t serverId1, double dist1, uint8_t serverId2, double dist
     Serial.println("\n");
 
     float tolerance = 2.0; // Tolerance for area difference
-    bool insideTriangle = abs(areaABP + areaACP + areaBCP - areaABC) <= tolerance;
+    bool insideTriangle = abs(areaABP+ areaACP + areaBCP - areaABC) <= tolerance;
     return insideTriangle;
 }
 
@@ -179,16 +173,14 @@ void loop() {
     uint8_t len = sizeof(buf);
     // Receive broadcast from trolley
     if (rf95.recv(buf, &len)) {
+      // Decrypt the received message
+      xorEncryptDecrypt(buf, len, sharedKey, sizeof(sharedKey));
       LoRaMessage packet;
       memcpy(&packet, buf, sizeof(LoRaMessage));
-
-      // Serial.println("received trolley id: ");
-      // Serial.println(packet.trolleyId);
       Serial.print("Update beacon ID: ");
       Serial.println(packet.beaconId);
-      // Serial.print("Received rssi : ");
-      // Serial.println(packet.meanRSSI);
 
+      // Decrypt the received message
       int8_t receivedTrolleyId = packet.trolleyId;
       int8_t receivedTrolleyIndex = receivedTrolleyId - STARTING_TROLLEY_ID;
       // If trolley found
@@ -211,18 +203,18 @@ void loop() {
       }
 
       // Find when all 3 beacon's RSSI value are filled
-      uint8_t allowableZeroForTrilateration = NO_BEACONS_NEEDED_FOR_TRILATERATION - NO_OF_BEACONS + 1;
-      for (int i = 0; i < NO_BEACONS_NEEDED_FOR_TRILATERATION; i++) {
-        if (trolleyTable[receivedTrolleyIndex].rssi[i] == 0.0) {
+      uint8_t allowableZeroForTrilateration = NO_OF_BEACONS - NO_BEACONS_NEEDED_FOR_TRILATERATION + 1;
+      for (int i = 0; i < NO_OF_BEACONS; i++) {
+        if (trolleyTable[receivedTrolleyIndex].rssi[i] == 0.0) { // is not filled
           allowableZeroForTrilateration--;
           if (allowableZeroForTrilateration == 0) {
-            Serial.println("All RSSI values filled");
+            Serial.println("All RSSI values are not filled");
             break;
           }
         }
       }
 
-      if (allowableZeroForTrilateration == 0) {
+      if (allowableZeroForTrilateration != 0) {
         uint8_t recordedIndexBeacons[NO_BEACONS_NEEDED_FOR_TRILATERATION];
         Serial.println("All RSSI values filled");
         // Calculate trilateration
@@ -253,8 +245,8 @@ void loop() {
 
         rf95.setFrequency(923.0); // to trolley
         delay(100);
-        for (int i=0; i<5; i++){
-          rf95.send((uint8_t*)&msgOut, sizeof(msgOut));
+        xorEncryptDecrypt((uint8_t*)&msgOut, sizeof(msgOut), sharedKey, sizeof(sharedKey));
+        for (int i=0; i<5; i++){rf95.send((uint8_t*)&msgOut, sizeof(msgOut));
           delay(100);
         }
         // rf95.setFrequency(newFrequency); 
